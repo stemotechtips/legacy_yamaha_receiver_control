@@ -18,7 +18,7 @@ class Receiver:
     valid_setup = False
 
     def __init__(self, ip_address):
-        """Initialize a receiver object without performing blocking network setup."""
+        """Initialise a receiver object without performing blocking network setup."""
         self.http_session = None
         self.ip_address = ip_address
         self.model_name = ""
@@ -56,12 +56,11 @@ class Receiver:
         if self.model_name is not None and self.model_name == "RX-V3900":
             self.valid_setup = True
             #[TO FIX] Currently this only returns true for the RX-V3900, but there is no reason why we couldn't extend this to the other models in the same family.
-
-        if self.valid_setup:
+            
             self.setup_devices()
             await self.setup_zones()
             await self.update_zones_statuses()
-
+        
         return self
 
     def setup_devices(self):
@@ -212,7 +211,36 @@ class Receiver:
         self.zone_three.print_details()
         # self.zone_four.print_details()
 
+    def print_zone_details_fancy(self):
+        zones = (self.main_zone, self.zone_two, self.zone_three)
+        headers = ("Zone", "Name", "Power", "Volume", "Mute", "Input", "Audio")
+        rows = []
+
+        for zone in zones:
+            volume = getattr(zone, "volume_status", None)
+            input_status = getattr(zone, "input_status", None)
+            audio_program = getattr(zone, "audio_program", None)
+            rows.append(
+                (
+                    zone.zone_name,
+                    zone.friendly_name,
+                    "On" if zone.is_on else "Standby",
+                    (str(volume.volume_level) + volume.volume_unit) if volume else "-",
+                    "On" if volume and volume.is_mute else "Off" if volume else "-",
+                    input_status.selected_input.name if input_status else "-",
+                    audio_program.program.name if audio_program else "-",
+                )
+            )
+
+        widths = [max(len(str(row[index])) for row in (headers,) + tuple(rows)) for index in range(len(headers))]
+        print("Zone details:")
+        print("  ".join(str(header).ljust(widths[index]) for index, header in enumerate(headers)))
+        print("  ".join("-" * width for width in widths))
+        for row in rows:
+            print("  ".join(str(value).ljust(widths[index]) for index, value in enumerate(row)))
+
     def print_available_inputs(self):
+        print("Currently available inputs are: ")
         for input in self.available_inputs:
             print(input)
 
@@ -229,7 +257,7 @@ class Device:
     device_type = Device_Type.OTHER
 
     def __init__(self, receiver, device_name):
-        """Initialize a device without a blocking network call."""
+        """Initialise a device without a blocking network call."""
         self.device_name = device_name
         self.receiver = receiver
         self.xml_response = None
@@ -460,6 +488,8 @@ class Zone:
                     desired_power_state,
                 )
                 self.time_at_on = datetime.now()
+                #self.is_on = desired_power_state
+                #We don't want this - actually what we want to do is update the whole Receiver every time we issue a command.
 
         else:
             print("Must provide Receiver System and valid input")
@@ -558,6 +588,7 @@ class Zone:
             print("Zone details are:")
             print("Zone name is: " + self.zone_name)
             print("Zone friendly name is: " + self.friendly_name)
+            print("Zone is currently on: " + str(self.is_on))
             if hasattr(self, "volume_status") and self.volume_status is not None and self.volume_status.valid_setup:
                 self.volume_status.print_details()
             if hasattr(self, "input_status") and self.input_status is not None and self.input_status.valid_setup:

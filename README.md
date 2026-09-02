@@ -35,6 +35,23 @@ What you cannot do with this library (or the Web Control Interface) is adjust an
 
 So we have a lot of core functionality, but with room to move!
 
+## Command-line interface
+
+Running `yamaha_receiver.py` without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
+
+```text
+python yamaha_receiver.py 192.168.1.XX status
+python yamaha_receiver.py 192.168.1.XX power main on
+python yamaha_receiver.py 192.168.1.XX input main CD
+python yamaha_receiver.py 192.168.1.XX volume main -400
+python yamaha_receiver.py 192.168.1.XX mute main on
+python yamaha_receiver.py 192.168.1.XX audio main STRAIGHT
+```
+
+Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD`, `TUNER`, and `STRAIGHT`. 
+
+Use `python yamaha_receiver.py --help` for the command list before connecting, or enter `help` at the interactive prompt. The direct form `python yamaha_receiver.py 192.168.1.XX help` is also available.
+
 ## How does this library work?
 
 Yamaha receivers from this era have a web interface that you can access by connecting the receiver to your network via an ethernet cable and just browsing to the IP address.  It is a fairly charming (if rudimentary) interface, with some basic buttons.
