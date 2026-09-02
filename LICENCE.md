@@ -1,0 +1,3 @@
+This project is licensed under the Creative Commons CC-BY-NC-SA 4.0 licence.  Full details are here: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+The licence generally prohibits commercial use.  I have no issue if you want to use this library to automate a Yamaha amplifier that you use as part of a commercial setup - for example a coffee shop.  However, do not rebadge this library and then charge people to use it - I can't imagine who would pay for it, but if you find them, don't make them. 
