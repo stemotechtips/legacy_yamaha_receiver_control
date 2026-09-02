@@ -87,10 +87,18 @@ class Receiver:
         # self.zone_four = Zone(self, "Zone 4")
 
     async def update_zones_statuses(self):
-        # the Yamaha interface calls this about once a second, so keep doing that
-        await self.main_zone.async_update_zone_status(self)
-        await self.zone_two.async_update_zone_status(self)
-        await self.zone_three.async_update_zone_status(self)
+        zones = (self.main_zone, self.zone_two, self.zone_three)
+        results = await asyncio.gather(
+            *(zone.async_update_zone_status(self) for zone in zones),
+            return_exceptions=True,
+        )
+        failures = [
+            zone.zone_name + ": " + str(result)
+            for zone, result in zip(zones, results)
+            if isinstance(result, Exception)
+        ]
+        if failures:
+            raise RuntimeError("; ".join(failures))
 
     def populate_inputs(self):
         for input in Input_Type:

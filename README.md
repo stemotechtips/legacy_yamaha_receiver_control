@@ -55,7 +55,7 @@ So we have a lot of core functionality, but with room to move!
 
 ## Command-line interface
 
-Running `yamaha-receiver` without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
+Running `yamaha-receiver` without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. You can also provide the IP address immediately with `yamaha-receiver 192.168.1.XX`; this starts interactive mode without prompting for the address. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
 
 ```text
 yamaha-receiver 192.168.1.XX status

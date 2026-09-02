@@ -4,6 +4,7 @@ import aiohttp
 from contextlib import suppress
 from io import StringIO
 from contextlib import redirect_stderr
+import sys
 from urllib.parse import urlsplit, urlunsplit
 
 from .enums import Audio_Setting_Type, Input_Type
@@ -149,7 +150,11 @@ async def refresh_zone_statuses(receiver):
     try:
         await receiver.update_zones_statuses()
     except Exception as error:
-        print("Status update failed: " + str(error))
+        if isinstance(error, (asyncio.TimeoutError, TimeoutError)):
+            detail = "timeout"
+        else:
+            detail = error.__class__.__name__ + ": " + (str(error) or "no details")
+        print("Status update failed: " + detail)
 
 
 async def initialise_receiver(http_session, address):
@@ -191,8 +196,10 @@ async def interactive_session(receiver, parser, address):
     print_help()
     async def update_statuses_periodically():
         while True:
+            started_at = asyncio.get_running_loop().time()
             await refresh_zone_statuses(receiver)
-            await asyncio.sleep(STATUS_UPDATE_INTERVAL)
+            elapsed = asyncio.get_running_loop().time() - started_at
+            await asyncio.sleep(max(0, STATUS_UPDATE_INTERVAL - elapsed))
 
     status_update_task = asyncio.create_task(update_statuses_periodically())
     try:
@@ -221,16 +228,17 @@ async def interactive_session(receiver, parser, address):
 async def main(arguments=None):
     parser = build_parser()
     if arguments is None:
-        arguments = parser.parse_args()
+        command_line = sys.argv[1:]
+        if len(command_line) == 1 and not command_line[0].startswith("-"):
+            arguments = argparse.Namespace(address=command_line[0], command=None)
+        else:
+            arguments = parser.parse_args(command_line)
 
-    interactive = arguments.address is None
-    if interactive:
+    interactive = arguments.command is None
+    if arguments.address is None:
         address = prompt_address()
     else:
         address = arguments.address
-
-    if not interactive and arguments.command is None:
-        arguments.command = "status"
 
     async with aiohttp.ClientSession() as http_session:
         try:
