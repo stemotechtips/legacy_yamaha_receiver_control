@@ -13,6 +13,24 @@ Other models theoretically supported by this library include:
 
 Not a long list, but I don't have any other hardware to test with.  If you have a Yamaha receiver from around this era that has a Web Control Interface, please let me know and we can do some testing!
 
+## Installing
+
+We are now on TestPyPi!  While I still sort out the kinks, this library is only available on the PyPi testing server (as opposed to the main server).
+
+To install, you just need to direct pip to the testing server, as follows:
+
+```
+pip install -i https://test.pypi.org/simple/ legacy-yamaha-receiver-control
+```
+
+Then just run:
+
+```
+yamaha-receiver
+```
+
+Or pass in specific commands, as set out further below.
+
 ## What can you do with this?
 
 At present, this library can perform all* of the functions you can do directly through the Web Control Interface, including:
@@ -51,44 +69,6 @@ yamaha-receiver 192.168.1.XX audio main STRAIGHT
 Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD` and `TUNER` (for inputs); and `STEREO_TWOCH` and `ADVENTURE` (for audio programs). 
 
 Use `yamaha-receiver --help` for the command list before connecting, or enter `help` at the interactive prompt.
-
-## Installing and publishing
-
-Install the released package with:
-
-```text
-python -m pip install legacy-yamaha-receiver-control
-yamaha-receiver 192.168.1.XX status
-```
-
-The public Python API is available from the single top-level package:
-
-```python
-from legacy_yamaha_receiver import Receiver, Input_Type
-```
-
-To build a release locally, install the packaging tools and run:
-
-```text
-python -m pip install --upgrade build twine
-python -m build
-python -m twine check dist/*
-```
-
-Before publishing to PyPI, upload to TestPyPI and install that copy to verify it:
-
-```text
-python -m twine upload --repository testpypi dist/*
-python -m pip install --index-url https://test.pypi.org/simple/ legacy-yamaha-receiver-control
-```
-
-Once verified, upload the same files to PyPI:
-
-```text
-python -m twine upload dist/*
-```
-
-Increment the `version` in `pyproject.toml` and rebuild for each subsequent release. Keep PyPI credentials in your keyring or use a PyPI API token; do not commit credentials to the repository.
 
 ## How does this library work?
 
