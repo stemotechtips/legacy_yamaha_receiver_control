@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "legacy-yamaha-receiver-control"
-version = "0.1.0"
+version = "0.1.1"
 description = "Control compatible late-2000s Yamaha receivers over their Web Control Interface"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -28,13 +28,7 @@ classifiers = [
 ]
 
 [project.scripts]
-yamaha-receiver = "yamaha_receiver:cli"
+yamaha-receiver = "legacy_yamaha_receiver.yamaha_receiver:cli"
 
-[tool.setuptools]
-py-modules = [
-    "enums",
-    "helper_functions",
-    "protocol",
-    "receiver_system",
-    "yamaha_receiver",
-]
+[tool.setuptools.packages.find]
+include = ["legacy_yamaha_receiver*"]

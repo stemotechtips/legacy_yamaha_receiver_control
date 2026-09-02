@@ -1,4 +1,4 @@
-from enums import *
+from .enums import *
 
 def return_int_if_numbers(string):
     if string.lstrip("-").isdecimal():

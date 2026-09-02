@@ -37,20 +37,20 @@ So we have a lot of core functionality, but with room to move!
 
 ## Command-line interface
 
-Running the package without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
+Running `yamaha-receiver` without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
 
 ```text
-python yamaha_receiver.py 192.168.1.XX status
-python yamaha_receiver.py 192.168.1.XX power main on
-python yamaha_receiver.py 192.168.1.XX input main CD
-python yamaha_receiver.py 192.168.1.XX volume main -400
-python yamaha_receiver.py 192.168.1.XX mute main on
-python yamaha_receiver.py 192.168.1.XX audio main STRAIGHT
+yamaha-receiver 192.168.1.XX status
+yamaha-receiver 192.168.1.XX power main on
+yamaha-receiver 192.168.1.XX input main CD
+yamaha-receiver 192.168.1.XX volume main -400
+yamaha-receiver 192.168.1.XX mute main on
+yamaha-receiver 192.168.1.XX audio main STRAIGHT
 ```
 
 Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD` and `TUNER` (for inputs); and `STEREO_TWOCH` and `ADVENTURE` (for audio programs). 
 
-Use `python yamaha_receiver.py --help` for the command list before connecting, or enter `help` at the interactive prompt.
+Use `yamaha-receiver --help` for the command list before connecting, or enter `help` at the interactive prompt.
 
 ## Installing and publishing
 
@@ -59,6 +59,12 @@ Install the released package with:
 ```text
 python -m pip install legacy-yamaha-receiver-control
 yamaha-receiver 192.168.1.XX status
+```
+
+The public Python API is available from the single top-level package:
+
+```python
+from legacy_yamaha_receiver import Receiver, Input_Type
 ```
 
 To build a release locally, install the packaging tools and run:

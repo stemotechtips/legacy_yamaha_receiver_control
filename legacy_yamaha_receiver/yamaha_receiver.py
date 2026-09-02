@@ -6,8 +6,8 @@ from io import StringIO
 from contextlib import redirect_stderr
 from urllib.parse import urlsplit, urlunsplit
 
-from enums import Audio_Setting_Type, Input_Type
-from receiver_system import Receiver
+from .enums import Audio_Setting_Type, Input_Type
+from .receiver_system import Receiver
 
 CONTROL_PATH = "/YamahaRemoteControl/ctrl"
 STATUS_UPDATE_INTERVAL = 10

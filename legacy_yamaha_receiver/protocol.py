@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 import aiohttp
 import asyncio
 
-from enums import *
+from .enums import *
 
 
 def construct_xml_status_request(system, subelement_payload):
