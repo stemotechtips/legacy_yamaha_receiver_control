@@ -7,7 +7,7 @@ from contextlib import redirect_stderr
 import sys
 from urllib.parse import urlsplit, urlunsplit
 
-from .enums import Audio_Setting_Type, Input_Type
+from .enums import Audio_Setting_Type, Input_Type, Zone_Names
 from .receiver_system import Receiver
 
 CONTROL_PATH = "/YamahaRemoteControl/ctrl"
@@ -15,11 +15,6 @@ STATUS_UPDATE_INTERVAL = 10
 INITIALISATION_ATTEMPTS = 3
 INITIALISATION_TIMEOUT = 5
 INITIALISATION_RETRY_DELAY = 1
-ZONE_NAMES = {
-    "main": "main_zone",
-    "zone2": "zone_two",
-    "zone3": "zone_three",
-}
 
 
 def target_url(address):
@@ -40,9 +35,16 @@ def target_url(address):
 
 def zone_for(receiver, name):
     try:
-        return getattr(receiver, ZONE_NAMES[name.lower()])
-    except (AttributeError, KeyError):
-        raise ValueError("unknown zone: " + name)
+        zone_name = Zone_Names[name.lower()].value
+    except KeyError:
+        valid_names = ", ".join(zone.name for zone in Zone_Names)
+        raise ValueError("unknown zone " + name + "; choose from: " + valid_names)
+
+    for zone in receiver.zones:
+        if zone.zone_name == zone_name:
+            return zone
+
+    raise ValueError("zone is not available: " + name)
 
 
 def enum_value(enum_type, name):
@@ -71,19 +73,19 @@ def build_parser():
         subparsers.add_parser(command)
 
     power = subparsers.add_parser("power", help="turn a zone on or off")
-    power.add_argument("zone", choices=ZONE_NAMES)
+    power.add_argument("zone", choices=[zone_name.name for zone_name in Zone_Names])
     power.add_argument("state", choices=("on", "off"))
 
     input_command = subparsers.add_parser("input", help="select a zone input")
-    input_command.add_argument("zone", choices=ZONE_NAMES)
+    input_command.add_argument("zone", choices=[zone_name.name for zone_name in Zone_Names])
     input_command.add_argument("input")
 
     volume = subparsers.add_parser("volume", help="set a zone volume level")
-    volume.add_argument("zone", choices=ZONE_NAMES)
+    volume.add_argument("zone", choices=[zone_name.name for zone_name in Zone_Names])
     volume.add_argument("level", type=int)
 
     mute = subparsers.add_parser("mute", help="mute or unmute a zone")
-    mute.add_argument("zone", choices=ZONE_NAMES)
+    mute.add_argument("zone", choices=[zone_name.name for zone_name in Zone_Names])
     mute.add_argument("state", choices=("on", "off"))
 
     audio = subparsers.add_parser("audio", help="set the main-zone audio program")

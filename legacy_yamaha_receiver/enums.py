@@ -61,3 +61,11 @@ class Audio_Setting_Type(Enum):
     ENHANCER_7CH = "7ch Enhancer"
     ENHANCER_9CH = "9ch Enhancer"
     SURROUND_DECODE = "Surround Decode"
+
+class Zone_Names(Enum):
+    # There is a 'zone 4' specified in the Yamaha code, but it doesn't exist in the model tested. For now, we just don't include it
+    
+    main = "Main_Zone"
+    zone2 = "Zone_2"
+    zone3 = "Zone_3"
+    #zone4 = "Zone_4"

@@ -14,6 +14,8 @@ from .helper_functions import *
 from .protocol import *
 import functools
 
+ZONE_STARTUP_COOLDOWN = 5
+
 class Receiver:
     valid_setup = False
 
@@ -26,9 +28,7 @@ class Receiver:
         self.firmware_version = ""
         self.available_inputs = []
         self.available_audio_programs = []
-        self.main_zone = None
-        self.zone_two = None
-        self.zone_three = None
+        self.zones = []
 
     @classmethod
     async def async_create(cls, http_session, ip_address):
@@ -79,22 +79,24 @@ class Receiver:
         self.populate_audio_programs()
 
     async def setup_zones(self):
-        # There is a 'zone 4' specified in the Yamaha code, but it doesn't exist in the model tested
-        # There's no need to initialise these dynamically - there are just three zones
-        self.main_zone = await Zone.async_from_receiver(self, "Main_Zone")
-        self.zone_two = await Zone.async_from_receiver(self, "Zone_2")
-        self.zone_three = await Zone.async_from_receiver(self, "Zone_3")
+        
+        for zone_name in Zone_Names:
+            zone = await Zone.async_from_receiver(self, zone_name.value)
+            self.zones.append(zone)
+        
+        #self.main_zone = await Zone.async_from_receiver(self, "Main_Zone")
+        #self.zone_two = await Zone.async_from_receiver(self, "Zone_2")
+        #self.zone_three = await Zone.async_from_receiver(self, "Zone_3")
         # self.zone_four = Zone(self, "Zone 4")
 
     async def update_zones_statuses(self):
-        zones = (self.main_zone, self.zone_two, self.zone_three)
         results = await asyncio.gather(
-            *(zone.async_update_zone_status(self) for zone in zones),
+            *(zone.async_update_zone_status(self) for zone in self.zones),
             return_exceptions=True,
         )
         failures = [
             zone.zone_name + ": " + str(result)
-            for zone, result in zip(zones, results)
+            for zone, result in zip(self.zones, results)
             if isinstance(result, Exception)
         ]
         if failures:
@@ -194,7 +196,7 @@ class Receiver:
 
     def print_all_details(self):
         self.print_receiver_details()
-        self.print_devices_details()
+        #self.print_devices_details()
         self.print_zone_details()
         self.print_available_inputs()
 
@@ -214,17 +216,16 @@ class Receiver:
         self.bluetooth.print_device_details()
 
     def print_zone_details(self):
-        self.main_zone.print_details()
-        self.zone_two.print_details()
-        self.zone_three.print_details()
+        for zone in self.zones:
+            zone.print_details()
+
         # self.zone_four.print_details()
 
     def print_zone_details_fancy(self):
-        zones = (self.main_zone, self.zone_two, self.zone_three)
         headers = ("Zone", "Name", "Power", "Volume", "Mute", "Input", "Audio")
         rows = []
 
-        for zone in zones:
+        for zone in self.zones:
             volume = getattr(zone, "volume_status", None)
             input_status = getattr(zone, "input_status", None)
             audio_program = getattr(zone, "audio_program", None)
@@ -489,13 +490,15 @@ class Zone:
                 print("Nothing to do - ignoring power change request")
 
             else:
+                await self.wait_for_startup_cooldown()
                 await toggle_zone_power(
                     receiver.http_session,
                     receiver.ip_address,
                     self.zone_name,
                     desired_power_state,
                 )
-                self.time_at_on = datetime.now()
+                if desired_power_state:
+                    self.time_at_on = datetime.now()
                 #self.is_on = desired_power_state
                 #We don't want this - actually what we want to do is update the whole Receiver every time we issue a command.
 
@@ -505,6 +508,7 @@ class Zone:
     async def change_zone_input(self, receiver, desired_input):
         if self.is_on:
             if isinstance(receiver, Receiver) and isinstance(desired_input, Input_Type):
+                await self.wait_for_startup_cooldown()
                 if not hasattr(self, "input_status") or self.input_status is None:
                     print("Zone input status not available")
                     return
@@ -519,12 +523,6 @@ class Zone:
                     #    + " to "
                     #    + desired_input.name
                     # )
-
-                    time_difference = datetime.now() - self.time_at_on
-
-                    if time_difference.seconds < 5:
-                        print("Turned on too recently! Waiting 5 seconds")
-                        await asyncio.sleep(5)
 
                     await change_zone_input(
                         receiver.http_session,
@@ -542,7 +540,7 @@ class Zone:
     async def change_zone_volume(self, receiver, new_vol):
         if isinstance(receiver, Receiver):
             if self.is_on:
-                # Update local state if available and send to receiver
+                await self.wait_for_startup_cooldown()
                 if self.volume_status is not None:
                     self.volume_status.volume_level = new_vol
                     await update_volume(
@@ -562,6 +560,7 @@ class Zone:
     async def change_zone_mute(self, receiver, new_mute_state):
         if isinstance(receiver, Receiver) and isinstance(new_mute_state, bool):
             if self.is_on:
+                await self.wait_for_startup_cooldown()
                 # Update local state and send to receiver
                 if self.volume_status is not None:
                     self.volume_status.is_mute = new_mute_state
@@ -579,6 +578,7 @@ class Zone:
             new_audio_program, Audio_Setting_Type
         ):
             if self.is_on:
+                await self.wait_for_startup_cooldown()
                 if not hasattr(self, "audio_program") or self.audio_program is None:
                     print("Zone audio program not available")
                     return
@@ -590,6 +590,20 @@ class Zone:
 
         else:
             print("Must provide Receiver System and correctly formed input")
+
+    async def wait_for_startup_cooldown(self):
+        if self.time_at_on is None or self.is_on is False:
+            return
+
+        elapsed = (datetime.now() - self.time_at_on).total_seconds()
+        remaining = ZONE_STARTUP_COOLDOWN - elapsed
+        if remaining > 0:
+            print(
+                "Zone turned on too recently. Waiting "
+                + str(round(remaining, 1))
+                + " seconds"
+            )
+            await asyncio.sleep(remaining)
 
     def print_details(self):
         if self.exists:
@@ -764,21 +778,22 @@ class Audio_Program:
             and isinstance(new_audio_program, Audio_Setting_Type)
         ):
             if self.program != new_audio_program:
-                print(
-                    "Changing audio program in: "
-                    + zone.friendly_name
-                    + " from: "
-                    + self.program.value
-                    + " to "
-                    + new_audio_program.value
-                )
+               # print(
+               #     "Changing audio program in: "
+               #     + zone.friendly_name
+               #     + " from: "
+               #    + self.program.value
+               #     + " to "
+               #     + new_audio_program.value
+               # )
                 self.program = new_audio_program
                 await update_zone_audio_program(
                     receiver.http_session, receiver.ip_address, zone.zone_name, self.program
                 )
 
             else:
-                print("Nothing to do: audio program is the same.")
+                # print("Nothing to do: audio program is the same.")
+                pass
 
         else:
             print(
