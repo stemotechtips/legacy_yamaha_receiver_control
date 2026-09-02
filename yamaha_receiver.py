@@ -243,8 +243,12 @@ async def main(arguments=None):
             await run_command(receiver, arguments)
 
 
-if __name__ == "__main__":
+def cli():
     try:
         asyncio.run(main())
     except ValueError as error:
         raise SystemExit("Error: " + str(error))
+
+
+if __name__ == "__main__":
+    cli()

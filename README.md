@@ -37,7 +37,7 @@ So we have a lot of core functionality, but with room to move!
 
 ## Command-line interface
 
-Running `yamaha_receiver.py` without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
+Running the package without arguments prompts for the receiver IP address and then accepts commands until `quit` is entered. Interactive mode refreshes all zone statuses immediately and about every 10 seconds while waiting for commands. Commands can also be supplied directly:
 
 ```text
 python yamaha_receiver.py 192.168.1.XX status
@@ -48,9 +48,41 @@ python yamaha_receiver.py 192.168.1.XX mute main on
 python yamaha_receiver.py 192.168.1.XX audio main STRAIGHT
 ```
 
-Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD`, `TUNER`, and `STRAIGHT`. 
+Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD` and `TUNER` (for inputs); and `STEREO_TWOCH` and `ADVENTURE` (for audio programs). 
 
-Use `python yamaha_receiver.py --help` for the command list before connecting, or enter `help` at the interactive prompt. The direct form `python yamaha_receiver.py 192.168.1.XX help` is also available.
+Use `python yamaha_receiver.py --help` for the command list before connecting, or enter `help` at the interactive prompt.
+
+## Installing and publishing
+
+Install the released package with:
+
+```text
+python -m pip install legacy-yamaha-receiver-control
+yamaha-receiver 192.168.1.XX status
+```
+
+To build a release locally, install the packaging tools and run:
+
+```text
+python -m pip install --upgrade build twine
+python -m build
+python -m twine check dist/*
+```
+
+Before publishing to PyPI, upload to TestPyPI and install that copy to verify it:
+
+```text
+python -m twine upload --repository testpypi dist/*
+python -m pip install --index-url https://test.pypi.org/simple/ legacy-yamaha-receiver-control
+```
+
+Once verified, upload the same files to PyPI:
+
+```text
+python -m twine upload dist/*
+```
+
+Increment the `version` in `pyproject.toml` and rebuild for each subsequent release. Keep PyPI credentials in your keyring or use a PyPI API token; do not commit credentials to the repository.
 
 ## How does this library work?
 
