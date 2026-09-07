@@ -1,8 +1,8 @@
 import xml.etree.ElementTree as ET
 import asyncio
 
-from enums import *
-from helper_functions import *
+from .enums import *
+from .helper_functions import *
 
 
 def required_xml_element(xml_response, path):

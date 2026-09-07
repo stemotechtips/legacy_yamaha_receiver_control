@@ -8,8 +8,8 @@ import sys
 import traceback
 from urllib.parse import urlsplit, urlunsplit
 
-from enums import Audio_Setting_Type, Input_Type, Zone_Names
-from receiver_system import Receiver
+from .enums import Audio_Setting_Type, Input_Type, Zone_Names
+from .receiver_system import Receiver
 
 CONTROL_PATH = "/YamahaRemoteControl/ctrl"
 STATUS_UPDATE_INTERVAL = 10

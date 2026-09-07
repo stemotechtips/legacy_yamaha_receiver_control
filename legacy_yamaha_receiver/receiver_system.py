@@ -9,9 +9,9 @@ import asyncio
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
-from enums import *
-from helper_functions import *
-from protocol import *
+from .enums import *
+from .helper_functions import *
+from .protocol import *
 import functools
 
 ZONE_STARTUP_COOLDOWN = 5
