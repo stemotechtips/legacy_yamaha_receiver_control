@@ -5,10 +5,11 @@ from contextlib import suppress
 from io import StringIO
 from contextlib import redirect_stderr
 import sys
+import traceback
 from urllib.parse import urlsplit, urlunsplit
 
-from .enums import Audio_Setting_Type, Input_Type, Zone_Names
-from .receiver_system import Receiver
+from enums import Audio_Setting_Type, Input_Type, Zone_Names
+from receiver_system import Receiver
 
 CONTROL_PATH = "/YamahaRemoteControl/ctrl"
 STATUS_UPDATE_INTERVAL = 10
@@ -159,13 +160,13 @@ async def refresh_zone_statuses(receiver):
         print("Status update failed: " + detail)
 
 
-async def initialise_receiver(http_session, address):
+async def cls_initialise_receiver(receiver):
     last_error = "receiver did not report a valid setup"
     for attempt in range(INITIALISATION_ATTEMPTS):
         print("Attempting to initialise...")
         try:
-            receiver = await asyncio.wait_for(
-                Receiver.async_create(http_session, address),
+            await asyncio.wait_for(
+                receiver.initialise_receiver(),
                 timeout=INITIALISATION_TIMEOUT,
             )
             if receiver.valid_setup:
@@ -176,7 +177,13 @@ async def initialise_receiver(http_session, address):
             if isinstance(error, asyncio.TimeoutError):
                 print("Timeout")
             else:
-                print("Invalid setup")
+                print(
+                    "Initialisation failed: "
+                    + error.__class__.__name__
+                    + ": "
+                    + (str(error) or "no details")
+                )
+                traceback.print_exc()
             last_error = str(error) or error.__class__.__name__
 
         if attempt < INITIALISATION_ATTEMPTS - 1:
@@ -244,7 +251,8 @@ async def main(arguments=None):
 
     async with aiohttp.ClientSession() as http_session:
         try:
-            receiver = await initialise_receiver(http_session, target_url(address))
+            receiver = Receiver(http_session, target_url(address))
+            await cls_initialise_receiver(receiver)
         except RuntimeError as error:
             raise SystemExit("Error: " + str(error))
         if interactive:

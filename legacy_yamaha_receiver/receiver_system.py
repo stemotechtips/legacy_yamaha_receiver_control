@@ -9,19 +9,19 @@ import asyncio
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
-from .enums import *
-from .helper_functions import *
-from .protocol import *
+from enums import *
+from helper_functions import *
+from protocol import *
 import functools
 
 ZONE_STARTUP_COOLDOWN = 5
 
 class Receiver:
-    valid_setup = False
 
-    def __init__(self, ip_address):
+    def __init__(self, http_session, ip_address):
         """Initialise a receiver object without performing blocking network setup."""
-        self.http_session = None
+        self.valid_setup = False
+        self.http_session = http_session
         self.ip_address = ip_address
         self.model_name = ""
         self.system_ID = ""
@@ -30,49 +30,39 @@ class Receiver:
         self.available_audio_programs = []
         self.zones = []
 
-    @classmethod
-    async def async_create(cls, http_session, ip_address):
+    async def initialise_receiver(self):
         """Create a receiver using the async HTTP helpers."""
-        self = cls(ip_address)
-        self.http_session = http_session
-
-        xml_payload_child = ET.Element("Service_Info")
-        xml_payload_child.text = "GetParam"
-        xml_payload = construct_xml_status_request("System", xml_payload_child)
-        results = await http_request(http_session, ip_address, xml_payload)
-
-        xml_response = ET.fromstring(results)
-
-        self.model_name = xml_response.findall("./System/Service_Info/Model_Name")[
-            0
-        ].text.strip()
-        self.system_ID = xml_response.findall("./System/Service_Info/System_ID")[
-            0
-        ].text.strip()
-        self.firmware_version = xml_response.findall(
-            "./System/Service_Info/Version/Main"
-        )[0].text.strip()
+        
+        self.model_name, self.system_ID, self.firmware_version = await get_receiver(self.http_session, self.ip_address)
 
         if self.model_name is not None and self.model_name == "RX-V3900":
             self.valid_setup = True
             #[TO FIX] Currently this only returns true for the RX-V3900, but there is no reason why we couldn't extend this to the other models in the same family.
             
-            self.setup_devices()
+            await self.setup_devices()
             await self.setup_zones()
             await self.update_zones_statuses()
         
         return self
 
-    def setup_devices(self):
-        self.analog_tuner = Device(self, "Tuner")
-        self.HD_tuner = Device(self, "HD_Radio")
-        self.sirius_tuner = Device(self, "SIRIUS")
-        self.XM_tuner = Device(self, "XM")
+    async def setup_devices(self):
+        
+        self.analog_tuner = Device("Tuner")
+        await self.analog_tuner.initialise_device(self)
+        self.HD_tuner = Device("HD_Radio")
+        await self.HD_tuner.initialise_device(self)
+        self.sirius_tuner = Device("SIRIUS")
+        await self.sirius_tuner.initialise_device(self)
+        self.XM_tuner = Device("XM")
+        await self.XM_tuner.initialise_device(self)
 
         # Currently these devices just silently fail - I can't work out how they initialise.
-        self.ipod = Device(self, "iPod")
-        self.rhapsody_tuner = Device(self, "Rhapsody")
-        self.bluetooth = Device(self, "Bluetooth")
+        self.ipod = Device("iPod")
+        await self.ipod.initialise_device(self)
+        self.rhapsody_tuner = Device("Rhapsody")
+        #await self.rhapsody_tuner.initialise_device(self)
+        self.bluetooth = Device("Bluetooth")
+        await self.bluetooth.initialise_device(self)
 
         # once we have initialised the devices we populate a list of available inputs
         self.populate_inputs()
@@ -81,13 +71,9 @@ class Receiver:
     async def setup_zones(self):
         
         for zone_name in Zone_Names:
-            zone = await Zone.async_from_receiver(self, zone_name.value)
+            zone = Zone(self, zone_name.value)
+            await zone.initialise_zone(self)
             self.zones.append(zone)
-        
-        #self.main_zone = await Zone.async_from_receiver(self, "Main_Zone")
-        #self.zone_two = await Zone.async_from_receiver(self, "Zone_2")
-        #self.zone_three = await Zone.async_from_receiver(self, "Zone_3")
-        # self.zone_four = Zone(self, "Zone 4")
 
     async def update_zones_statuses(self):
         results = await asyncio.gather(
@@ -110,6 +96,11 @@ class Receiver:
             ):
                 if self.sirius_tuner.exists:
                     self.available_inputs.append(input)
+            elif input.name == Input_Type.TUNER.name:
+                if self.analog_tuner.exists:
+                    self.available_inputs.append(input)
+            #Currently no way to include HD tuner? 
+
             elif input.name == Input_Type.XM.name:
                 if self.XM_tuner.exists:
                     self.available_inputs.append(input)
@@ -126,6 +117,7 @@ class Receiver:
                     self.available_inputs.append(input)
 
             else:
+
                 self.available_inputs.append(input)
         self.available_inputs.sort(key=functools.cmp_to_key(input_comparator))
 
@@ -196,7 +188,7 @@ class Receiver:
 
     def print_all_details(self):
         self.print_receiver_details()
-        #self.print_devices_details()
+        self.print_devices_details()
         self.print_zone_details()
         self.print_available_inputs()
 
@@ -253,55 +245,41 @@ class Receiver:
         for input in self.available_inputs:
             print(input)
 
-
-# if isinstance(receiver, Receiver):
-
-
-#        else:
-#            print("Not instantiated correctly: Need to provide already instantiated Receiver System")
-
-
 class Device:
-    exists = False
-    device_type = Device_Type.OTHER
 
-    def __init__(self, receiver, device_name):
+    def __init__(self, device_name):
         """Initialise a device without a blocking network call."""
         self.device_name = device_name
-        self.receiver = receiver
         self.xml_response = None
         self.exists = False
+        self.radios = []
         self.device_type = Device_Type.OTHER
 
-    @classmethod
-    async def async_from_receiver(cls, receiver, device_name):
+    async def initialise_device(self, receiver):
         """Create a device using the async Yamaha protocol helper."""
-        device = cls(receiver, device_name)
-        device.xml_response = await get_device(
-            receiver.http_session, receiver.ip_address, device_name
-        )
-        search_string = "./" + device_name + "/Config/Device"
-        if device_name == "Tuner" or device_name == "HD_Radio":
-            device.device_type = Device_Type.RADIO
 
-        xml_search = device.xml_response.findall(search_string)
+#        if receiver is not None and isinstance(receiver, Receiver):
+#            raise TypeError("Need to provide already instantiated Receiver System")
 
-        if len(xml_search) != 0:
-            if xml_search[0].text == "Ready":
-                device.exists = True
-                if device.device_type is Device_Type.RADIO:
-                    device.setup_radios()
+        self.exists = await get_device(receiver.http_session, receiver.ip_address, self.device_name)
 
-        return device
+        if self.exists and (self.device_name == "Tuner" or self.device_name == "HD_Radio"):
+            #self.exists = False
+            self.device_type = Device_Type.RADIO
 
-    def setup_radios(self):
+            await self.setup_radios(receiver)
+
+
+    async def setup_radios(self, receiver):
+        #Radios not implemented yet
         if self.exists:
-            self.radios = []
-            radio_results = self.xml_response.findall("./Tuner/Config/Range_and_Step/*")
+            radio_results = await get_radios(receiver.http_session, receiver.ip_address, self.device_name)
             # print(ET.tostring(radio_results))
             for radio_result in radio_results:
-                # print(radio_result)
-                radio_instance = Radio(radio_result)
+                #print(radio_result)
+                radio_instance = Radio(radio_result.get("name"), radio_result.get("frequency_min"), 
+                                       radio_result.get("frequency_max"), radio_result.get("decimals"), 
+                                       radio_result.get("frequency_unit"), radio_result.get("frequency_step"))
 
                 if radio_instance.valid_setup:
                     self.radios.append(radio_instance)
@@ -315,13 +293,13 @@ class Device:
         print("Device name is: " + self.device_name)
         if self.exists:
             print("Device exists")
-            if self.device_type is Device_Type.RADIO:
+            if self.device_type == Device_Type.RADIO:
                 self.print_radio_details()
         else:
             print("Device does not exist")
 
     def print_radio_details(self):
-        if hasattr(self, "radios") and self.radios is not None:
+        if self.device_type == Device_Type.RADIO and self.radios is not None:
             for radio in self.radios:
                 if isinstance(radio, Radio):
                     radio.print_details()
@@ -332,58 +310,19 @@ class Device:
         else:
             print("No radios instantiated")
 
-
 class Radio:
-    valid_setup = True
 
-    def __init__(self, xml_response):
+    def __init__(self, name, frequency_min, frequency_max, frequency_decimals, frequency_unit, frequency_step):
         # The idea is that we iterate through the radios provided in the 'tuner' XML, and then give each entity to
         # this function to instantiate them.  It assumes the root XML element is the "AM" or "FM", etc, element
-        self.name = xml_response.tag
-        self.frequency_min = return_int_if_numbers(
-            xml_response.findall("./Min/Val")[0].text.strip()
-        )
-        self.frequency_decimals = return_int_if_numbers(
-            xml_response.findall("./Min/Exp")[0].text.strip()
-        )
-        self.frequency_unit = xml_response.findall("./Min/Unit")[0].text.strip()
-        self.frequency_max = return_int_if_numbers(
-            xml_response.findall("./Max/Val")[0].text.strip()
-        )
-        self.frequency_step = return_int_if_numbers(
-            xml_response.findall("./Step/Val")[0].text.strip()
-        )
-
-        if (
-            isinstance(self.frequency_min, int)
-            and isinstance(self.frequency_decimals, int)
-            and isinstance(self.frequency_max, int)
-            and isinstance(self.frequency_step, int)
-        ):
-            self.valid_setup = False
-
-        if self.frequency_decimals != return_int_if_numbers(
-            xml_response.findall("./Max/Exp")[0].text.strip()
-        ) or self.frequency_decimals != return_int_if_numbers(
-            xml_response.findall("./Step/Exp")[0].text.strip()
-        ):
-            print("Warning: Inconsistent details for frequency decimals")
-            print(self.frequency_decimals)
-            print(
-                return_int_if_numbers(xml_response.findall("./Max/Exp")[0].text.strip())
-            )
-            print(
-                return_int_if_numbers(
-                    xml_response.findall("./Step/Exp")[0].text.strip()
-                )
-            )
-
-        if (
-            self.frequency_unit != xml_response.findall("./Max/Unit")[0].text.strip()
-            or self.frequency_unit
-            != xml_response.findall("./Step/Unit")[0].text.strip()
-        ):
-            print("Warning: Inconsistent details provided for frequency units")
+        self.valid_setup = True
+        #Currently we have no way of invalidating a radio setup...
+        self.name = name
+        self.frequency_min = frequency_min
+        self.frequency_max = frequency_max
+        self.frequency_decimals = frequency_decimals
+        self.frequency_unit = frequency_unit
+        self.frequency_step = frequency_step
 
         if not self.valid_setup:
             print("Help! Something went wrong!")
@@ -401,57 +340,46 @@ class Radio:
 
 
 class Zone:
-    exists = True
 
     def __init__(self, receiver, zone_name):
         self.zone_name = zone_name
-        self.receiver = receiver
         self.zone_id = f"{receiver.system_ID}_{self.zone_name}"
         self.friendly_name = zone_name
         self.exists = True
         self.is_on = False
-        self.available_inputs = receiver.available_inputs
-        self.available_audio_programs = receiver.available_audio_programs
         self.volume_status = None
         self.input_status = None
         self.audio_program = None
         self.time_at_on = None
 
-    @classmethod
-    async def async_from_receiver(cls, receiver, zone_name):
+        if self.zone_name == "Main_Zone":
+            self.available_audio_programs = receiver.available_audio_programs
+        else:
+            self.available_audio_programs = None
+
+    async def initialise_zone(self, receiver):
         """Create a zone using async Yamaha network calls."""
-        zone = cls(receiver, zone_name)
 
         if not isinstance(receiver, Receiver):
             raise TypeError("Need to provide already instantiated Receiver System")
 
-        friendly_name_xml = await get_zone_name(
-            receiver.http_session, receiver.ip_address, zone_name
+        friendly_name = await get_zone_name(
+            receiver.http_session, receiver.ip_address, self.zone_name
         )
-        search_string_template = "./" + zone_name
-        friendly_name_search_string = search_string_template + "/Rename/Rename_Latin_1"
-        friendly_name = friendly_name_xml.find(friendly_name_search_string)
-        if friendly_name is not None:
-            zone.friendly_name = friendly_name.text.strip()
-            await zone.async_update_zone_status(receiver)
+        if friendly_name != self.zone_name:
+            self.friendly_name = friendly_name
+            await self.async_update_zone_status(receiver)
         else:
-            zone.exists = False
-
-        return zone
+            self.exists = False
 
     async def async_update_zone_status(self, receiver):
         if self.exists:
             if isinstance(receiver, Receiver):
-                search_string_template = "./" + self.zone_name
-                status_xml = await get_zone_status(
+                
+                power_status_string, volume_xml, input_xml, audio_program_xml = await get_zone_status(
                     receiver.http_session, receiver.ip_address, self.zone_name
                 )
-                power_status_search_string = (
-                    search_string_template + "/Basic_Status/Power_Control/Power"
-                )
-                power_status_string = status_xml.findall(power_status_search_string)[
-                    0
-                ].text.strip()
+
                 if power_status_string == "Standby":
                     self.is_on = False
                 elif power_status_string == "On":
@@ -459,22 +387,15 @@ class Zone:
                     if self.time_at_on is None:
                         self.time_at_on = datetime.now()
 
-                vol_string = search_string_template + "/Basic_Status/Vol"
-                vol_xml = status_xml.findall(vol_string)
-                if len(vol_xml) != 0:
-                    self.volume_status = Volume(vol_xml[0])
-
-                input_search_string = search_string_template + "/Basic_Status/Input"
-                input_xml = status_xml.findall(input_search_string)
+                if len(volume_xml) != 0:
+                    self.volume_status = Volume(volume_xml)
 
                 if len(input_xml) != 0:
-                    self.input_status = Input(input_xml[0])
+                    self.input_status = Input(input_xml, receiver.available_inputs)
 
-                audio_search_string = search_string_template + "/Basic_Status/Surr"
-                audio_xml = status_xml.findall(audio_search_string)
+                if audio_program_xml is not None:
+                    self.audio_program = Audio_Program(audio_program_xml)
 
-                if len(audio_xml) != 0:
-                    self.audio_program = Audio_Program(audio_xml[0])
 
             else:
                 print(
@@ -499,8 +420,6 @@ class Zone:
                 )
                 if desired_power_state:
                     self.time_at_on = datetime.now()
-                #self.is_on = desired_power_state
-                #We don't want this - actually what we want to do is update the whole Receiver every time we issue a command.
 
         else:
             print("Must provide Receiver System and valid input")
@@ -561,12 +480,11 @@ class Zone:
         if isinstance(receiver, Receiver) and isinstance(new_mute_state, bool):
             if self.is_on:
                 await self.wait_for_startup_cooldown()
-                # Update local state and send to receiver
+                
                 if self.volume_status is not None:
-                    self.volume_status.is_mute = new_mute_state
-                await update_zone_mute(
-                    receiver.http_session, receiver.ip_address, self.zone_name, new_mute_state
-                )
+                    await update_zone_mute(
+                        receiver.http_session, receiver.ip_address, self.zone_name, new_mute_state
+                    )
             else:
                 print("Zone must be on before we change mute!")
 
@@ -621,7 +539,6 @@ class Zone:
 
 
 class Volume:
-    valid_setup = True
 
     # We've hard coded these in - they are hardcoded in the javascript sent by the
 
@@ -629,6 +546,7 @@ class Volume:
     min_vol = -805
 
     def __init__(self, vol_xml):
+        self.valid_setup = True
         self.volume_level = return_int_if_numbers(
             vol_xml.findall("./Lvl/Val")[0].text.strip()
         )
@@ -745,11 +663,20 @@ class Volume:
 
 
 class Input:
-    valid_setup = True
 
-    def __init__(self, input_xml):
-        self.selected_input = Input_Type(input_xml.findall("./Input_Sel")[0].text)
-        self.selected_input_title = input_xml.findall("./Input_Sel_Title")[0].text
+    def __init__(self, input_xml, available_inputs):
+        self.valid_setup = True
+        self.selected_input = None
+        asserted_input = Input_Type(input_xml.findall("./Input_Sel")[0].text)
+
+        if Input_Type(asserted_input) in available_inputs:
+
+            self.selected_input = asserted_input
+            self.selected_input_title = input_xml.findall("./Input_Sel_Title")[0].text
+            
+        else:
+            print("Help! Zone set to unavailable input")
+            self.valid_setup = False
 
     def print_details(self):
         if self.valid_setup:
