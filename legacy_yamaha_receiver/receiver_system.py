@@ -16,6 +16,25 @@ import functools
 
 ZONE_STARTUP_COOLDOWN = 5
 
+async def get_receiver_details(http_session, ip_address):
+    model_name, system_ID, firmware_version = await get_receiver(http_session, ip_address)
+
+    if model_name is not None and system_ID is not None and firmware_version is not None:
+        assert isinstance(model_name, str)
+        assert isinstance(system_ID, str)
+        assert isinstance(firmware_version, str)
+
+        print(model_name)
+        print(system_ID)
+        print(firmware_version)
+
+        return model_name, system_ID, firmware_version
+
+    else:
+
+        return None, None, None
+
+
 class Receiver:
 
     def __init__(self, http_session, ip_address):
@@ -30,10 +49,14 @@ class Receiver:
         self.available_audio_programs = []
         self.zones = []
 
+    #Expose function that allows users to check whether IP address reveals a receiver
+       
+
     async def initialise_receiver(self):
         """Create a receiver using the async HTTP helpers."""
         
-        self.model_name, self.system_ID, self.firmware_version = await get_receiver(self.http_session, self.ip_address)
+        #self.model_name, self.system_ID, self.firmware_version = await get_receiver(self.http_session, self.ip_address)
+        self.model_name, self.system_ID, self.firmware_version = await get_receiver_details(self.http_session, self.ip_address)
 
         if self.model_name is not None and self.model_name == "RX-V3900":
             self.valid_setup = True

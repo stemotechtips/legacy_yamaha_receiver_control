@@ -9,7 +9,7 @@ import traceback
 from urllib.parse import urlsplit, urlunsplit
 
 from .enums import Audio_Setting_Type, Input_Type, Zone_Names
-from .receiver_system import Receiver
+from .receiver_system import Receiver, get_receiver_details
 
 CONTROL_PATH = "/YamahaRemoteControl/ctrl"
 STATUS_UPDATE_INTERVAL = 10
@@ -70,7 +70,7 @@ def build_parser():
     parser.add_argument("address", nargs="?", help="receiver IP address or control URL")
     subparsers = parser.add_subparsers(dest="command")
 
-    for command in ("help", "status", "receiver-details", "zones", "inputs"):
+    for command in ("help", "basic-details", "status", "receiver-details", "zones", "inputs"):
         subparsers.add_parser(command)
 
     power = subparsers.add_parser("power", help="turn a zone on or off")
@@ -122,6 +122,8 @@ async def run_command(receiver, arguments):
 
     if command == "help":
         print_help()
+    elif command == "basic-details":
+        raise ValueError("basic-details must be run directly with an address")
     elif command == "status":
         receiver.print_all_details()
     elif command == "receiver-details":
@@ -250,6 +252,18 @@ async def main(arguments=None):
         address = arguments.address
 
     async with aiohttp.ClientSession() as http_session:
+        if arguments.command == "basic-details":
+            try:
+                await get_receiver_details(http_session, target_url(address))
+            except Exception as error:
+                raise SystemExit(
+                    "Error retrieving basic receiver details: "
+                    + error.__class__.__name__
+                    + ": "
+                    + (str(error) or "no details")
+                )
+            return
+
         try:
             receiver = Receiver(http_session, target_url(address))
             await cls_initialise_receiver(receiver)

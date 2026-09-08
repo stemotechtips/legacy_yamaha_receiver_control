@@ -60,6 +60,7 @@ Running `yamaha-receiver` without arguments prompts for the receiver IP address 
 Commands can also be supplied directly:
 
 ```text
+yamaha-receiver 192.168.1.XX basic-details
 yamaha-receiver 192.168.1.XX status
 yamaha-receiver 192.168.1.XX power main on
 yamaha-receiver 192.168.1.XX input main CD
@@ -67,6 +68,8 @@ yamaha-receiver 192.168.1.XX volume main -400
 yamaha-receiver 192.168.1.XX mute main on
 yamaha-receiver 192.168.1.XX audio main STRAIGHT
 ```
+
+`basic-details` retrieves only the model, system ID, and firmware version, so it does not perform full receiver setup. It must be used with an address and cannot be entered as an interactive command.
 
 Available zones are `main`, `zone2`, and `zone3`. Input and audio program arguments use the enum names in `enums.py`; for example, `CD` and `TUNER` (for inputs); and `STEREO_TWOCH` and `ADVENTURE` (for audio programs). 
 
