@@ -58,9 +58,8 @@ class Receiver:
         #self.model_name, self.system_ID, self.firmware_version = await get_receiver(self.http_session, self.ip_address)
         self.model_name, self.system_ID, self.firmware_version = await get_receiver_details(self.http_session, self.ip_address)
 
-        if self.model_name is not None and self.model_name == "RX-V3900":
+        if self.model_name is not None:
             self.valid_setup = True
-            #[TO FIX] Currently this only returns true for the RX-V3900, but there is no reason why we couldn't extend this to the other models in the same family.
             
             await self.setup_devices()
             await self.setup_zones()
